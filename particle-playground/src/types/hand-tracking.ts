@@ -19,3 +19,9 @@ export interface TrackedHand {
   landmarks: Landmark[];
   gesture: GestureName;
 }
+
+/** The camera input a future Hand Landmarker will read. */
+export type HandTrackingSource = {
+  video: HTMLVideoElement;
+  stream: MediaStream;
+};
