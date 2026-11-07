@@ -1,5 +1,5 @@
-import { Experience } from "@/components/experience/Experience";
+import { ParticleScene } from "@/components/particles/ParticleScene";
 
 export default function Home() {
-  return <Experience />;
+  return <ParticleScene />;
 }

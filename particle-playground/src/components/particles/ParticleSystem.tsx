@@ -1,62 +1,67 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, type Points, type PointsMaterial } from "three";
-import type { GestureName } from "@/types/hand-tracking";
-
-const COUNT = 1600;
-
-const GESTURE_COLOR: Record<GestureName, string> = {
-  none: "#e4e4e7",
-  open_palm: "#fde68a",
-  closed_fist: "#fb7185",
-  pinch: "#7dd3fc",
-  point: "#c4b5fd",
-};
+import {
+  AdditiveBlending,
+  BufferAttribute,
+  type Points,
+  type Vector3,
+} from "three";
+import { particleConfig } from "@/components/particles/particle-config";
+import { createParticleBuffers, stepParticles } from "@/lib/particle-motion";
+import type { InteractionMode } from "@/types/particles";
 
 type ParticleSystemProps = {
-  gesture?: GestureName;
+  interaction: InteractionMode;
+  target: RefObject<Vector3>;
 };
 
-export function ParticleSystem({ gesture = "none" }: ParticleSystemProps) {
+export function ParticleSystem({ interaction, target }: ParticleSystemProps) {
   const points = useRef<Points>(null);
-  const color = useMemo(() => new Color(GESTURE_COLOR[gesture]), [gesture]);
-
-  const positions = useMemo(() => {
-    const values = new Float32Array(COUNT * 3);
-
-    for (let index = 0; index < COUNT; index += 1) {
-      const offset = index * 3;
-      values[offset] = (Math.random() - 0.5) * 8;
-      values[offset + 1] = (Math.random() - 0.5) * 8;
-      values[offset + 2] = (Math.random() - 0.5) * 8;
-    }
-
-    return values;
-  }, []);
+  const buffers = useMemo(() => createParticleBuffers(particleConfig), []);
 
   useFrame((_, delta) => {
-    if (!points.current) {
+    const position = points.current?.geometry.getAttribute("position");
+    if (!(position instanceof BufferAttribute)) {
       return;
     }
 
-    const speed =
-      gesture === "closed_fist" ? 0.02 : gesture === "open_palm" ? 0.2 : 0.08;
-    points.current.rotation.y += delta * speed;
-
-    const material = points.current.material;
-    if (!Array.isArray(material)) {
-      (material as PointsMaterial).color.lerp(color, 0.08);
+    if (!target.current) {
+      return;
     }
+
+    stepParticles(
+      buffers.positions,
+      buffers.velocities,
+      particleConfig,
+      delta,
+      interaction,
+      target.current,
+    );
+    position.needsUpdate = true;
   });
 
   return (
     <points ref={points}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute
+          attach="attributes-position"
+          args={[buffers.positions, 3]}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          args={[buffers.colors, 3]}
+        />
       </bufferGeometry>
-      <pointsMaterial color={GESTURE_COLOR[gesture]} size={0.035} sizeAttenuation />
+      <pointsMaterial
+        vertexColors
+        size={particleConfig.size}
+        sizeAttenuation
+        transparent
+        depthWrite={false}
+        blending={AdditiveBlending}
+      />
     </points>
   );
 }
