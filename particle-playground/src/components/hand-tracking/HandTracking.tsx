@@ -1,40 +1,44 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
-import { readHandTrackingSource } from "@/lib/hand-tracking-source";
+import { useCallback, useRef, type RefObject } from "react";
+import { useHandLandmarks } from "@/hooks/use-hand-landmarks";
+import type { Landmark } from "@/types/hand-tracking";
 
 type HandTrackingProps = {
   videoRef: RefObject<HTMLVideoElement | null>;
 };
 
 export function HandTracking({ videoRef }: HandTrackingProps) {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
+  const readoutRef = useRef<HTMLParagraphElement>(null);
+  const publishLandmarks = useCallback((landmarks: Landmark[] | null) => {
+    const readout = readoutRef.current;
+    if (!readout) {
       return;
     }
 
-    function update() {
-      setReady(readHandTrackingSource(videoRef.current) !== null);
+    if (!landmarks) {
+      readout.textContent = "No hand in frame";
+      return;
     }
 
-    update();
-    video.addEventListener("loadeddata", update);
-    video.addEventListener("emptied", update);
+    const wrist = landmarks[0];
+    readout.textContent = `${landmarks.length} landmarks · wrist ${wrist.x.toFixed(2)}, ${wrist.y.toFixed(2)}`;
+  }, []);
 
-    return () => {
-      video.removeEventListener("loadeddata", update);
-      video.removeEventListener("emptied", update);
-    };
-  }, [videoRef]);
+  const { handPresent, status, error } = useHandLandmarks(
+    videoRef,
+    publishLandmarks,
+  );
 
   return (
-    <p className="mt-3 text-sm text-zinc-300">
-      {ready
-        ? "Camera video is ready. The hand landmarker is not loaded yet."
-        : "Waiting for the camera video."}
-    </p>
+    <div className="mt-3 space-y-1 text-sm text-zinc-300">
+      <p>
+        {status === "loading" && "Loading the hand landmarker…"}
+        {status === "error" && error}
+        {status === "ready" &&
+          (handPresent ? "Hand detected" : "Watching for a hand")}
+      </p>
+      <p ref={readoutRef}>No hand in frame</p>
+    </div>
   );
 }

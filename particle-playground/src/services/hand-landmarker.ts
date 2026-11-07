@@ -1,22 +1,18 @@
-import {
-  FilesetResolver,
-  HandLandmarker,
-  type HandLandmarker as HandLandmarkerInstance,
-} from "@mediapipe/tasks-vision";
-import { detectGesture } from "@/lib/gesture-detection";
-import type { Handedness, Landmark, TrackedHand } from "@/types/hand-tracking";
+import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
-const WASM_BASE =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm";
+const WASM_PATH = "/mediapipe/wasm";
 
 const MODEL_ASSET =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
-let landmarkerPromise: Promise<HandLandmarkerInstance> | null = null;
+let landmarkerPromise: Promise<HandLandmarker> | null = null;
+let users = 0;
 
-export function createHandLandmarker(): Promise<HandLandmarkerInstance> {
+export function acquireHandLandmarker(): Promise<HandLandmarker> {
+  users += 1;
+
   if (!landmarkerPromise) {
-    landmarkerPromise = loadHandLandmarker().catch((error: unknown) => {
+    landmarkerPromise = createHandLandmarker().catch((error: unknown) => {
       landmarkerPromise = null;
       throw error;
     });
@@ -25,56 +21,40 @@ export function createHandLandmarker(): Promise<HandLandmarkerInstance> {
   return landmarkerPromise;
 }
 
-async function loadHandLandmarker(): Promise<HandLandmarkerInstance> {
-  const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
+export async function releaseHandLandmarker(): Promise<void> {
+  users = Math.max(0, users - 1);
+  if (users > 0 || !landmarkerPromise) {
+    return;
+  }
+
+  const pending = landmarkerPromise;
+  landmarkerPromise = null;
+
+  try {
+    const landmarker = await pending;
+    landmarker.close();
+  } catch {
+    // Initialization failed, so there is no detector to close.
+  }
+}
+
+async function createHandLandmarker(): Promise<HandLandmarker> {
+  const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
+  const baseOptions = { modelAssetPath: MODEL_ASSET };
   const options = {
-    baseOptions: {
-      modelAssetPath: MODEL_ASSET,
-    },
     runningMode: "VIDEO" as const,
-    numHands: 2,
+    numHands: 1,
   };
 
   try {
     return await HandLandmarker.createFromOptions(vision, {
       ...options,
-      baseOptions: { ...options.baseOptions, delegate: "GPU" },
+      baseOptions: { ...baseOptions, delegate: "GPU" },
     });
   } catch {
     return HandLandmarker.createFromOptions(vision, {
       ...options,
-      baseOptions: { ...options.baseOptions, delegate: "CPU" },
+      baseOptions: { ...baseOptions, delegate: "CPU" },
     });
   }
-}
-
-export function readHands(
-  landmarker: HandLandmarkerInstance,
-  video: HTMLVideoElement,
-  timestamp: number,
-): TrackedHand[] {
-  if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return [];
-  }
-
-  const result = landmarker.detectForVideo(video, timestamp);
-
-  return result.landmarks.map((landmarks, index) => {
-    const points = landmarks.map(toLandmark);
-    const label = result.handedness[index]?.[0]?.categoryName;
-
-    return {
-      handedness: toHandedness(label),
-      landmarks: points,
-      gesture: detectGesture(points),
-    };
-  });
-}
-
-function toLandmark(landmark: { x: number; y: number; z: number }): Landmark {
-  return { x: landmark.x, y: landmark.y, z: landmark.z };
-}
-
-function toHandedness(label: string | undefined): Handedness {
-  return label === "Left" ? "Left" : "Right";
 }
