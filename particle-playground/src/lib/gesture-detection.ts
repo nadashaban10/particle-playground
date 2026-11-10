@@ -21,6 +21,21 @@ function isExtended(tip: Landmark, knuckle: Landmark, wrist: Landmark): boolean 
   return distance(tip, wrist) > distance(knuckle, wrist) * 1.2;
 }
 
+/** Index extended, with the middle, ring, and pinky curled. */
+export function isIndexPointing(landmarks: Landmark[]): boolean {
+  if (landmarks.length < 21) {
+    return false;
+  }
+
+  const wrist = landmarks[WRIST];
+  return (
+    isExtended(landmarks[INDEX_TIP], landmarks[INDEX_MCP], wrist) &&
+    !isExtended(landmarks[MIDDLE_TIP], landmarks[MIDDLE_MCP], wrist) &&
+    !isExtended(landmarks[RING_TIP], landmarks[RING_MCP], wrist) &&
+    !isExtended(landmarks[PINKY_TIP], landmarks[PINKY_MCP], wrist)
+  );
+}
+
 export function detectGesture(landmarks: Landmark[]): GestureName {
   if (landmarks.length < 21) {
     return "none";

@@ -1,44 +1,51 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { detectHandLandmarks } from "@/lib/detect-hand-landmarks";
+import { detectTrackedHands } from "@/lib/detect-hand-landmarks";
 import { readHandTrackingSource } from "@/lib/hand-tracking-source";
 import {
   acquireHandLandmarker,
   releaseHandLandmarker,
 } from "@/services/hand-landmarker";
-import type { Landmark } from "@/types/hand-tracking";
+import type { TrackedHand } from "@/types/hand-tracking";
 
 export function useHandLandmarks(
   videoRef: RefObject<HTMLVideoElement | null>,
-  onLandmarks?: (landmarks: Landmark[] | null) => void,
+  onHands?: (hands: TrackedHand[], detectedAt: number) => void,
 ) {
-  const landmarksRef = useRef<Landmark[] | null>(null);
-  const onLandmarksRef = useRef(onLandmarks);
-  const [handPresent, setHandPresent] = useState(false);
+  const handsRef = useRef<TrackedHand[]>([]);
+  /**
+   * `performance.now()` of the last successful detection (-Infinity before the
+   * first). `handsRef` keeps its last value if the video or detector stalls, so
+   * consumers compare this against the clock to know whether it is still fresh.
+   */
+  const lastDetectionRef = useRef(Number.NEGATIVE_INFINITY);
+  const onHandsRef = useRef(onHands);
+  const [handCount, setHandCount] = useState(0);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    onLandmarksRef.current = onLandmarks;
-  }, [onLandmarks]);
+    onHandsRef.current = onHands;
+  }, [onHands]);
 
   useEffect(() => {
     let frameId = 0;
     let stopped = false;
     let lastVideoTime = -1;
-    let present = false;
+    let count = 0;
 
-    function publish(landmarks: Landmark[] | null) {
-      landmarksRef.current = landmarks;
-      onLandmarksRef.current?.(landmarks);
+    function publish(hands: TrackedHand[]) {
+      const detectedAt = performance.now();
+      handsRef.current = hands;
+      lastDetectionRef.current = detectedAt;
+      onHandsRef.current?.(hands, detectedAt);
 
-      const nextPresent = landmarks !== null;
-      if (nextPresent !== present) {
-        present = nextPresent;
-        setHandPresent(nextPresent);
+      if (hands.length !== count) {
+        count = hands.length;
+        setHandCount(count);
       }
     }
 
@@ -61,11 +68,7 @@ export function useHandLandmarks(
 
             try {
               publish(
-                detectHandLandmarks(
-                  landmarker,
-                  source.video,
-                  performance.now(),
-                ),
+                detectTrackedHands(landmarker, source.video, performance.now()),
               );
             } catch (caught) {
               if (!stopped) {
@@ -103,5 +106,5 @@ export function useHandLandmarks(
     };
   }, [videoRef]);
 
-  return { landmarksRef, handPresent, status, error };
+  return { handsRef, lastDetectionRef, handCount, status, error };
 }

@@ -5,9 +5,14 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 type CameraPreviewProps = {
   videoRef?: RefObject<HTMLVideoElement | null>;
   className?: string;
+  fill?: boolean;
 };
 
-export function CameraPreview({ videoRef, className }: CameraPreviewProps) {
+export function CameraPreview({
+  videoRef,
+  className,
+  fill = false,
+}: CameraPreviewProps) {
   const internalRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,15 +77,29 @@ export function CameraPreview({ videoRef, className }: CameraPreviewProps) {
   );
 
   return (
-    <div className={className ?? "w-full max-w-xl"}>
+    <div className={`relative ${className ?? "w-full"}`}>
       <video
         ref={setVideo}
-        className="aspect-video w-full rounded-xl bg-black object-cover [transform:scaleX(-1)]"
+        className={
+          fill
+            ? "h-[calc(100%-2rem)] w-[95%]  m-auto bg-black object-cover [transform:scaleX(-1)]"
+            : "aspect-video w-full rounded-xl m-auto bg-black object-cover [transform:scaleX(-1)]"
+        }
         playsInline
         muted
         autoPlay
       />
-      {error ? <p className="mt-3 text-sm text-rose-300">{error}</p> : null}
+      {error ? (
+        <p
+          className={
+            fill
+              ? "absolute top-4 left-4 z-20 max-w-[calc(100%-9rem)] text-left text-sm text-rose-300"
+              : "mt-3 text-sm text-rose-300"
+          }
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

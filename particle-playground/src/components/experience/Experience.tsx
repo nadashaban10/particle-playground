@@ -24,8 +24,10 @@ export function Experience() {
     <main className="relative h-dvh w-full">
       <ParticleScene />
       <div className="absolute bottom-6 left-6 w-48 rounded-2xl bg-zinc-950/80 p-3 ring-1 ring-white/10 backdrop-blur">
-        <CameraPreview videoRef={videoRef} />
-        <HandTracking videoRef={videoRef} />
+        <div className="relative">
+          <CameraPreview videoRef={videoRef} className="w-full" />
+          <HandTracking videoRef={videoRef} />
+        </div>
       </div>
     </main>
   );

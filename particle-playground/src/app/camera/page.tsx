@@ -2,7 +2,7 @@ import { CameraHandTrackingPreview } from "@/components/camera/CameraHandTrackin
 
 export default function CameraPage() {
   return (
-    <main className="flex h-dvh items-center justify-center bg-zinc-950 p-6">
+    <main className="h-dvh w-full overflow-hidden bg-black">
       <CameraHandTrackingPreview />
     </main>
   );

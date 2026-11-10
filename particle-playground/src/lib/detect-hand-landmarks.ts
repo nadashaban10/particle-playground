@@ -1,26 +1,16 @@
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
-import type { Landmark } from "@/types/hand-tracking";
+import { handsFromDetection } from "@/lib/track-hands";
+import type { TrackedHand } from "@/types/hand-tracking";
 
-const HAND_LANDMARK_COUNT = 21;
-
-export function detectHandLandmarks(
+export function detectTrackedHands(
   landmarker: HandLandmarker,
   video: HTMLVideoElement,
   timestamp: number,
-): Landmark[] | null {
+): TrackedHand[] {
   if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return null;
+    return [];
   }
 
   const result = landmarker.detectForVideo(video, timestamp);
-  const hand = result.landmarks[0];
-  if (!hand || hand.length < HAND_LANDMARK_COUNT) {
-    return null;
-  }
-
-  return hand.slice(0, HAND_LANDMARK_COUNT).map((point) => ({
-    x: point.x,
-    y: point.y,
-    z: point.z,
-  }));
+  return handsFromDetection(result.landmarks, result.handedness);
 }

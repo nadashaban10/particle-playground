@@ -1,3 +1,4 @@
+import { PALETTES } from "@/lib/palettes";
 import type { ParticleConfig } from "@/types/particles";
 
 /** Change these values to experiment with the particle cloud. */
@@ -6,7 +7,7 @@ export const particleConfig = {
   velocityMultiplier: 1.2,
   bounds: { min: -4, max: 4 },
   size: 0.045,
-  colors: ["#7c3aed", "#38bdf8", "#e879f9"],
+  colors: PALETTES.cosmic.colors,
   background: "#05060f",
   cameraZ: 10,
   cameraFov: 60,

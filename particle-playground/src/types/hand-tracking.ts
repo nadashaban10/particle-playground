@@ -15,9 +15,12 @@ export interface Landmark {
 }
 
 export interface TrackedHand {
-  handedness: Handedness;
+  /** The person's own left or right hand. Null when MediaPipe omits a label. */
+  handedness: Handedness | null;
   landmarks: Landmark[];
   gesture: GestureName;
+  /** Wrist position in normalized image space. */
+  position: Landmark;
 }
 
 /** The camera input a future Hand Landmarker will read. */

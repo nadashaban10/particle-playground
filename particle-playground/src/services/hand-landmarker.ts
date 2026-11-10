@@ -1,6 +1,7 @@
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
 const WASM_PATH = "/mediapipe/wasm";
+const MAX_HANDS = 2;
 
 const MODEL_ASSET =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -43,7 +44,7 @@ async function createHandLandmarker(): Promise<HandLandmarker> {
   const baseOptions = { modelAssetPath: MODEL_ASSET };
   const options = {
     runningMode: "VIDEO" as const,
-    numHands: 1,
+    numHands: MAX_HANDS,
   };
 
   try {

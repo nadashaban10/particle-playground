@@ -1,4 +1,9 @@
-import { Color } from "three";
+import {
+  gestureForceMagnitude,
+  type LocalForce,
+  type LocalForceField,
+} from "@/lib/gesture-force-field";
+import { writePaletteColors } from "@/lib/palettes";
 import type {
   InteractionMode,
   ParticleBuffers,
@@ -6,12 +11,13 @@ import type {
   Vector3,
 } from "@/types/particles";
 
+const NO_GESTURE_FORCES: readonly LocalForce[] = [];
+
 export function createParticleBuffers(config: ParticleConfig): ParticleBuffers {
   const positions = new Float32Array(config.count * 3);
   const velocities = new Float32Array(config.count * 3);
   const colors = new Float32Array(config.count * 3);
   const span = config.bounds.max - config.bounds.min;
-  const palette = config.colors.map((hex) => new Color(hex));
 
   for (let index = 0; index < config.count; index += 1) {
     const offset = index * 3;
@@ -23,12 +29,9 @@ export function createParticleBuffers(config: ParticleConfig): ParticleBuffers {
     velocities[offset] = randomSignedSpeed();
     velocities[offset + 1] = randomSignedSpeed();
     velocities[offset + 2] = randomSignedSpeed();
-
-    const color = palette[index % palette.length];
-    colors[offset] = color.r;
-    colors[offset + 1] = color.g;
-    colors[offset + 2] = color.b;
   }
+
+  writePaletteColors(colors, "cosmic");
 
   return { positions, velocities, colors };
 }
@@ -40,15 +43,24 @@ export function stepParticles(
   delta: number,
   interaction: InteractionMode = config.interaction,
   target: Vector3 = config.target,
+  formationTargets?: Float32Array | null,
+  formationStrength = 0,
+  ambientSpeed = 1,
+  gestureField: LocalForceField | null = null,
 ): void {
   const { min, max } = config.bounds;
   const frameDelta = Math.min(delta, 0.05);
-  const step = config.velocityMultiplier * frameDelta;
+  const speed = Number.isFinite(ambientSpeed) ? ambientSpeed : 1;
+  // Speed scales travel only. Forces, drag, the speed limit, and walls stay on real time.
+  const step = config.velocityMultiplier * frameDelta * speed;
   const { x: targetX, y: targetY, z: targetZ } = target;
   const radius = config.interactionRadius;
   const radiusSquared = radius * radius;
   const directionSign = interaction === "repulsion" ? -1 : 1;
   const drag = Math.exp(-config.damping * frameDelta);
+  // Gesture forces (open palm / fist), already in this system's local space.
+  const gestureForces = gestureField?.forces ?? NO_GESTURE_FORCES;
+  const gestureCount = gestureField ? gestureField.count : 0;
 
   for (let index = 0; index < config.count; index += 1) {
     const offset = index * 3;
@@ -68,6 +80,40 @@ export function stepParticles(
       vx += (dx / distance) * force;
       vy += (dy / distance) * force;
       vz += (dz / distance) * force;
+    }
+
+    for (let fieldIndex = 0; fieldIndex < gestureCount; fieldIndex += 1) {
+      const field = gestureForces[fieldIndex];
+      const fx = field.x - positions[offset];
+      const fy = field.y - positions[offset + 1];
+      const fz = field.z - positions[offset + 2];
+      const fieldDistanceSquared = fx * fx + fy * fy + fz * fz;
+
+      if (
+        fieldDistanceSquared > 1e-12 &&
+        fieldDistanceSquared < field.radius * field.radius
+      ) {
+        const fieldDistance = Math.sqrt(fieldDistanceSquared);
+        // Toward the centre for positive strength, away for negative.
+        const push =
+          gestureForceMagnitude(
+            fieldDistance,
+            field.radius,
+            field.core,
+            field.strength,
+          ) * frameDelta;
+
+        vx += (fx / fieldDistance) * push;
+        vy += (fy / fieldDistance) * push;
+        vz += (fz / fieldDistance) * push;
+      }
+    }
+
+    if (formationTargets && formationStrength > 0) {
+      const pull = formationStrength * frameDelta;
+      vx += (formationTargets[offset] - positions[offset]) * pull;
+      vy += (formationTargets[offset + 1] - positions[offset + 1]) * pull;
+      vz += (formationTargets[offset + 2] - positions[offset + 2]) * pull;
     }
 
     vx *= drag;
