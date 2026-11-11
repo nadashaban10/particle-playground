@@ -1,5 +1,5 @@
-import { ParticleScene } from "@/components/particles/ParticleScene";
+import { HomePage } from "@/features/home";
 
 export default function Home() {
-  return <ParticleScene />;
+  return <HomePage />;
 }
