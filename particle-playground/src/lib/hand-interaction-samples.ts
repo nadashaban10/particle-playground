@@ -72,6 +72,7 @@ export function resetHandInteractionBuilder(builder: HandInteractionBuilder): vo
     slot.seen = false;
     slot.sample.valid = false;
     slot.sample.gesture = "none";
+    slot.sample.palmValid = false;
   }
 }
 
@@ -116,6 +117,7 @@ export function buildHandInteractionSamples(
       slot.active = false;
       slot.sample.valid = false;
       slot.sample.gesture = "none";
+      slot.sample.palmValid = false;
     }
   }
 
@@ -137,6 +139,7 @@ function fillSample(
   sample.valid = false;
   sample.pinchRatio = Number.NaN;
   sample.gesture = "none";
+  sample.palmValid = false;
 
   const wrist = landmarks[0];
   if (isFinitePoint(wrist)) {
@@ -177,11 +180,18 @@ function fillSample(
   sample.pinchRatio = ratio;
   sample.valid = true;
 
-  // The raw gesture is only usable together with a placeable palm centre.
-  if (
-    hand.gesture !== "none" &&
-    mapPalm(builder, slot, landmarks, camera, frame.mirrored, region)
-  ) {
+  // The palm centre is placed for every measurable hand (the hand indicator
+  // rests there); the raw gesture is only usable together with it.
+  sample.palmValid = mapPalm(
+    builder,
+    slot,
+    landmarks,
+    camera,
+    frame.mirrored,
+    region,
+  );
+
+  if (sample.palmValid && hand.gesture !== "none") {
     sample.gesture = hand.gesture;
   }
 }
@@ -300,6 +310,7 @@ function createSlot(key: string): Slot {
       valid: false,
       gesture: "none",
       palmPoint: palm,
+      palmValid: false,
     },
   };
 }

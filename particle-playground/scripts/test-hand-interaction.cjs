@@ -597,6 +597,38 @@ test("12e. a hand's gesture does not leak to the next frame or to a departed han
   assert.equal(builder.slots[1].sample.gesture, "none", "a departed hand keeps none");
 });
 
+/* ---------- palm availability (17B.6) ---------- */
+
+test("13. a measurable hand always has a palm anchor, whatever its gesture", () => {
+  const { samples } = build([makeHand("Right")]);
+  assert.equal(samples[0].gesture, "none");
+  assert.equal(samples[0].valid, true);
+  assert.equal(samples[0].palmValid, true, "the indicator can sit at the palm");
+});
+
+test("13b. a missing palm landmark leaves the pinch valid but no palm anchor", () => {
+  const landmarks = makeLandmarks();
+  landmarks[13] = { x: Number.NaN, y: 0.5, z: 0 };
+  const hand = makeHand("Right", { landmarks });
+  hand.gesture = "open_palm";
+  const { samples } = build([hand]);
+  assert.equal(samples[0].valid, true);
+  assert.equal(samples[0].palmValid, false);
+  assert.equal(samples[0].gesture, "none");
+});
+
+test("13c. an invalid or departed hand never reports a palm anchor", () => {
+  const broken = makeHand("Left", { landmarks: makeLandmarks().slice(0, 5) });
+  assert.equal(build([broken]).samples[0].palmValid, false);
+
+  const camera = makeCamera(16 / 9);
+  const builder = createHandInteractionBuilder();
+  buildHandInteractionSamples(builder, [makeHand("Right")], camera, FRAME);
+  assert.equal(builder.slots[1].sample.palmValid, true);
+  buildHandInteractionSamples(builder, [], camera, FRAME);
+  assert.equal(builder.slots[1].sample.palmValid, false);
+});
+
 /* ---------- report ---------- */
 
 fs.rmSync(out, { recursive: true, force: true });

@@ -25,7 +25,9 @@ export type HandInteractionSample = {
   /**
    * World-space palm centre: the mean of the wrist (0) and the four finger
    * knuckles (5, 9, 13, 17), mapped like the pinch point. Where gesture forces
-   * are anchored. Only meaningful while `gesture` is not "none".
+   * and the hand indicator are anchored. Meaningful only while `palmValid`.
    */
   palmPoint: Vector3;
+  /** True when `palmPoint` was placed this frame (valid sample, landmarks present). */
+  palmValid: boolean;
 };

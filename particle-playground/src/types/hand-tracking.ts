@@ -5,7 +5,8 @@ export type GestureName =
   | "open_palm"
   | "closed_fist"
   | "pinch"
-  | "point";
+  | "point"
+  | "v_sign";
 
 /** A single hand landmark. x and y are normalized to the image, z is depth. */
 export interface Landmark {

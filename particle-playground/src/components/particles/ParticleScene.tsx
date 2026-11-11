@@ -5,14 +5,20 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Vector3, type Group, type Mesh } from "three";
 import { WorldHandCamera } from "@/components/hand-tracking/WorldHandCamera";
 import { particleConfig } from "@/components/particles/particle-config";
-import { GrabFeedback } from "@/components/particles/GrabFeedback";
+import { HandFeedback } from "@/components/particles/HandFeedback";
 import { HandGrabController } from "@/components/particles/HandGrabController";
 import { HandInteractionBridge } from "@/components/particles/HandInteractionBridge";
 import { ParticleSystem } from "@/components/particles/ParticleSystem";
 import { StudioToolbar } from "@/components/studio/StudioToolbar";
 import type { FormationName } from "@/lib/formations";
+import {
+  createFormationSwitchRequest,
+  takeFormationSwitchRequest,
+  type FormationSwitchRequest,
+} from "@/lib/formation-switch";
 import { createLocalForceField } from "@/lib/gesture-force-field";
 import { createGrabView, type GrabView } from "@/lib/grab-controller";
+import { createHandFeedbackState } from "@/lib/hand-feedback";
 import type { PaletteName } from "@/lib/palettes";
 import { useMouseTarget } from "@/hooks/use-mouse-target";
 import type { InteractionMode } from "@/types/particles";
@@ -46,6 +52,7 @@ export function ParticleScene() {
         <MouseParticles
           interaction={interaction}
           formation={formation}
+          onFormationChange={setFormation}
           palette={palette}
         />
       </Canvas>
@@ -67,10 +74,12 @@ export function ParticleScene() {
 function MouseParticles({
   interaction,
   formation,
+  onFormationChange,
   palette,
 }: {
   interaction: InteractionMode;
   formation: FormationName;
+  onFormationChange: (formation: FormationName) => void;
   palette: PaletteName;
 }) {
   // The pointer target lives in world space; the formation lives in a group
@@ -87,10 +96,20 @@ function MouseParticles({
   const grabView = useRef<GrabView>(createGrabView());
   // Open-palm / fist force fields: written by the grab controller, read by the physics.
   const [forceField] = useState(() => ({ current: createLocalForceField() }));
+  // Animation state for the hand indicators: stepped by the controller, drawn by HandFeedback.
+  const [feedback] = useState(() => ({ current: createHandFeedbackState() }));
+  // V-sign formation requests: written by the controller, drained into React once.
+  const [formationRequest] = useState(() => ({
+    current: createFormationSwitchRequest(),
+  }));
 
   return (
     <>
       <TargetMarker target={target} />
+      <FormationSwitchDrain
+        request={formationRequest}
+        onChange={onFormationChange}
+      />
       <HandGrabController
         groupRef={groupRef}
         formation={formation}
@@ -98,6 +117,8 @@ function MouseParticles({
         localTarget={localTarget}
         view={grabView}
         forceField={forceField}
+        feedback={feedback}
+        formationRequest={formationRequest}
       />
       <group ref={groupRef}>
         <ParticleSystem
@@ -109,9 +130,31 @@ function MouseParticles({
           gestureField={forceField}
         />
       </group>
-      <GrabFeedback view={grabView} />
+      <HandFeedback feedback={feedback} />
     </>
   );
+}
+
+/**
+ * Applies a pending V-sign formation change to React state. Runs after the
+ * grab controller (default priority), so a request published this frame is
+ * consumed the same frame. Only calls React when something actually fired.
+ */
+function FormationSwitchDrain({
+  request,
+  onChange,
+}: {
+  request: RefObject<FormationSwitchRequest>;
+  onChange: (formation: FormationName) => void;
+}) {
+  useFrame(() => {
+    const next = takeFormationSwitchRequest(request.current);
+    if (next !== null) {
+      onChange(next);
+    }
+  });
+
+  return null;
 }
 
 function TargetMarker({ target }: { target: RefObject<Vector3> }) {

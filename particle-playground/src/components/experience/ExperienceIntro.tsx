@@ -19,7 +19,8 @@ export function ExperienceIntro({
           Move particles with your hands
         </h1>
         <p className="text-zinc-400">
-          Allow the camera, then try an open palm, a fist, a pinch, or a point.
+          Allow the camera, then try an open palm, a fist, a pinch, or a V-sign
+          to change the formation.
         </p>
       </div>
       <button

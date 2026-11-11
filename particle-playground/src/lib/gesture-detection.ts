@@ -65,9 +65,31 @@ export function detectGesture(landmarks: Landmark[]): GestureName {
     return "point";
   }
 
+  // Index and middle up, ring and pinky curled. The thumb is ignored here:
+  // pinch already returned above when the tips touch, so a V with the thumb
+  // out or tucked both count as a V-sign.
+  if (fingers[0] && fingers[1] && !fingers[2] && !fingers[3]) {
+    return "v_sign";
+  }
+
   if (extended >= 3) {
     return "open_palm";
   }
 
   return "none";
+}
+
+/** Index and middle extended, with the ring and pinky curled. */
+export function isVSign(landmarks: Landmark[]): boolean {
+  if (landmarks.length < 21) {
+    return false;
+  }
+
+  const wrist = landmarks[WRIST];
+  return (
+    isExtended(landmarks[INDEX_TIP], landmarks[INDEX_MCP], wrist) &&
+    isExtended(landmarks[MIDDLE_TIP], landmarks[MIDDLE_MCP], wrist) &&
+    !isExtended(landmarks[RING_TIP], landmarks[RING_MCP], wrist) &&
+    !isExtended(landmarks[PINKY_TIP], landmarks[PINKY_MCP], wrist)
+  );
 }

@@ -7,6 +7,12 @@ import { particleConfig } from "@/components/particles/particle-config";
 import { createFormationTargets, type FormationName } from "@/lib/formations";
 import { measureFormationExtents } from "@/lib/formation-extents";
 import {
+  createFormationSwitchState,
+  publishFormationSwitch,
+  stepFormationSwitch,
+  type FormationSwitchRequest,
+} from "@/lib/formation-switch";
+import {
   createGrabController,
   setGrabBounds,
   stepGrabController,
@@ -14,6 +20,7 @@ import {
   type GrabView,
 } from "@/lib/grab-controller";
 import type { LocalForceField } from "@/lib/gesture-force-field";
+import { stepHandFeedback, type HandFeedbackState } from "@/lib/hand-feedback";
 import { handInteractionSource } from "@/lib/hand-interaction-source";
 
 /**
@@ -22,7 +29,7 @@ import { handInteractionSource } from "@/lib/hand-interaction-source";
  * negative values order the work without touching how the scene renders:
  *
  *   -3  HandInteractionBridge  detection -> world samples
- *   -2  HandGrabController     samples -> grab -> group position -> local pointer
+ *   -2  HandGrabController     samples -> grab -> switch -> feedback
  *    0  ParticleSystem         physics, using the local pointer target
  */
 export const GRAB_CONTROLLER_PRIORITY = -2;
@@ -30,6 +37,7 @@ export const GRAB_CONTROLLER_PRIORITY = -2;
 type HandGrabControllerProps = {
   /** The parent group that carries the formation's world translation. */
   groupRef: RefObject<Group | null>;
+  /** Current formation (React). Used for grab bounds and V-sign cycling. */
   formation: FormationName;
   /** Smoothed pointer target in world space (written by `useMouseTarget`). */
   worldTarget: RefObject<Vector3>;
@@ -41,6 +49,16 @@ type HandGrabControllerProps = {
    * for the particle physics. Rewritten in place every frame.
    */
   forceField: RefObject<LocalForceField>;
+  /**
+   * Animation state for the hand indicators. Stepped here, after the grab, the
+   * two-hand transform, the forces and the formation switch for the frame.
+   */
+  feedback: RefObject<HandFeedbackState>;
+  /**
+   * One-shot drain slot for a V-sign formation change. Written here; React
+   * consumes it outside the animation loop.
+   */
+  formationRequest: RefObject<FormationSwitchRequest>;
 };
 
 /**
@@ -51,7 +69,8 @@ type HandGrabControllerProps = {
  * group's space (through its full inverse matrix). With no hand samples
  * (camera off) it does nothing but keep the local pointer target equal to the
  * world one while the group is untransformed, and correct after a transform.
- * It also derives the open-palm / fist force fields from the same samples.
+ * It also derives the open-palm / fist force fields from the same samples, and
+ * advances the V-sign formation switcher (without owning formation React state).
  */
 export function HandGrabController({
   groupRef,
@@ -60,8 +79,11 @@ export function HandGrabController({
   localTarget,
   view,
   forceField,
+  feedback,
+  formationRequest,
 }: HandGrabControllerProps) {
   const controller = useMemo(() => createGrabController(), []);
+  const formationSwitch = useMemo(() => createFormationSwitchState(), []);
   // Formation targets are deterministic, so this matches the particle system's.
   const extents = useMemo(
     () =>
@@ -85,10 +107,12 @@ export function HandGrabController({
       extents[formation],
     );
 
+    const samples = handInteractionSource.current;
+
     stepGrabController(
       controller,
       group,
-      handInteractionSource.current,
+      samples,
       delta,
       view.current,
       forceField.current,
@@ -96,6 +120,32 @@ export function HandGrabController({
 
     if (worldTarget.current && localTarget.current) {
       writeLocalTarget(controller, group, worldTarget.current, localTarget.current);
+    }
+
+    stepFormationSwitch(
+      formationSwitch,
+      samples,
+      controller.grab,
+      controller.two,
+      formation,
+      delta,
+    );
+
+    if (formationRequest.current) {
+      publishFormationSwitch(formationSwitch, formationRequest.current);
+    }
+
+    if (feedback.current) {
+      stepHandFeedback(
+        feedback.current,
+        samples,
+        controller.grab,
+        controller.two,
+        controller.forces,
+        group.position,
+        delta,
+        formationSwitch,
+      );
     }
   }, GRAB_CONTROLLER_PRIORITY);
 
